@@ -7,6 +7,7 @@ from pydantic import BaseModel, ConfigDict
 from datetime import datetime
 import uuid
 import shutil
+import fitz
 
 from fastapi import FastAPI, Depends, HTTPException, UploadFile, File
 from fastapi.responses import FileResponse
@@ -42,7 +43,7 @@ class Summary(Base):
     __tablename__ = "summaries"
     id = Column(Integer, primary_key = True, index = True)
     pdf_id = Column(Integer, ForeignKey("pdfs.id"))
-    summarize_text = Column(Text)
+    summary = Column(Text)
     created_at = Column(DateTime, default=datetime.utcnow)
     pdf = relationship("PDF", back_populates="summaries")
     #Create a model used var as well
@@ -190,23 +191,57 @@ def get_pdf(id : int, db : Session = Depends(get_db)):
 #Summary Data Contracts
 class SummaryRequest(BaseModel):
     pdf_id : int
-    storage_id : str
+
 
 class SummaryResponse(BaseModel):
+    id : int
     pdf_id : int
     summary : str
+    created_at : datetime
+
+    model_config = ConfigDict(from_attributes=True)
+
+#Langgraph Data Contracts
+class LGSummaryInput(BaseModel): #input to AI as text of pdf
+    text: str
+
+class LGSummaryOutput(BaseModel): #output the summary of given text
+    summary: str
+
+def run_summary_agent(text: str) -> str: #All langchain stuff here
+    return "PlaceHold Summary"
+
+def extract_text_from_pdf(path: str) -> str: #Turns pdf into text for langchain model to understand
+    text = ""
+    with fitz.open(path) as doc:
+        for page in doc:
+            text += page.get_text()
+    return text
 
 @app.post("/summary/", response_model=SummaryResponse)
 def create_summary(summary_request : SummaryRequest, db : Session = Depends(get_db)):
-    #Get the pdf
-    #load pdf content
-    #generate summary
-    #save summary in db
-    #return summary
-    return summary_request.summary
+    pdf = db.query(PDF).filter(PDF.id == summary_request.pdf_id).first()
+    if pdf is None:
+        raise HTTPException(status_code=404, detail="PDF not Found")
+    
+    text = extract_text_from_pdf(pdf.storage_path) #getting text from the pdf file
+
+    
+    summary = run_summary_agent(text) #AI portion, getting summary
+    generated_summary = summary 
+
+    summary = Summary(
+        pdf_id = summary_request.pdf_id,
+        summary = generated_summary
+    )
+
+    db.add(summary)
+    db.commit()
+    db.refresh(summary)
+    
+    return SummaryResponse(id = summary.id, pdf_id = summary.pdf_id, summary = summary.summary, created_at = summary.created_at)
 
 @app.get("/summary/{pdf_id}", response_model=SummaryResponse)
 def get_summary(pdf_id : int, db : Session = Depends(get_db)):
-    #get the summary for this pdf
-    #return the summary for this pdf
-    return 
+    summary = db.query(Summary).filter(Summary.pdf_id == pdf_id).first()
+    return summary
