@@ -208,15 +208,15 @@ class LGSummaryInput(BaseModel): #input to AI as text of pdf
 class LGSummaryOutput(BaseModel): #output the summary of given text
     summary: str
 
-def run_summary_agent(text: str) -> str: #All langchain stuff here
+def run_summary_agent(pdf_id: int) -> str: #AI Work, RAG model here
     return "PlaceHold Summary"
 
-def extract_text_from_pdf(path: str) -> str: #Turns pdf into text for langchain model to understand
-    text = ""
-    with fitz.open(path) as doc:
-        for page in doc:
-            text += page.get_text()
-    return text
+#def extract_text_from_pdf(path: str) -> str: not needed
+ #   text = ""
+  #  with fitz.open(path) as doc:
+   #     for page in doc:
+    #        text += page.get_text()
+    # return text
 
 @app.post("/summary/", response_model=SummaryResponse)
 def create_summary(summary_request : SummaryRequest, db : Session = Depends(get_db)):
@@ -224,10 +224,10 @@ def create_summary(summary_request : SummaryRequest, db : Session = Depends(get_
     if pdf is None:
         raise HTTPException(status_code=404, detail="PDF not Found")
     
-    text = extract_text_from_pdf(pdf.storage_path) #getting text from the pdf file
+   #text = extract_text_from_pdf(pdf.storage_path) #getting text from the pdf file
 
     
-    summary = run_summary_agent(text) #AI portion, getting summary
+    summary = run_summary_agent(pdf.id)
     generated_summary = summary 
 
     summary = Summary(
